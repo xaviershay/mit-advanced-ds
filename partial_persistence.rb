@@ -36,7 +36,6 @@ class PartialPersistenceTest < MiniTest::Unit::TestCase
     range.each do |x|
       assert_equal [1, 2, [3, x]], ds.unwrap(x)
     end
-    Visualizer.output(ds)
   end
 
   # The theory holds for cyclic data structures, but this implementation does
