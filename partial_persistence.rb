@@ -213,7 +213,7 @@ private
 
   def record_at_path(initial, path, now)
     path.inject(initial) do |record, i|
-      record.values_at_time(now)[i] # Could be optimized because only need one element of record
+      record.values_at_time(now)[i]
     end
   end
 end
