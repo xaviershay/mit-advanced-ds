@@ -165,7 +165,7 @@ end
 # version.
 class Root
   def value_at_time(t)
-    records.to_a.reverse.detect {|tn, _| # TODO: Optimize
+    records.to_a.reverse.detect {|tn, _|
       tn <= t
     }.last
   end
@@ -239,24 +239,24 @@ class Record
   # Note that adding a delta to a parent record may in turn trigger a rebalance
   # of that record as well!
   def add_delta(t, index, value)
-    deltas << Delta.new(t, index, value)
-    deltas.uniq! # TODO: Remove this
-
+    d = Delta.new(t, index, value)
     if deltas.length < MAX_DELTAS
+      deltas << d
       self
     else
-      new_record = rebalance(t)
+      new_record = rebalance(t, d)
       copy_backlinks(new_record, t)
       clear_backlinks
-      deltas.pop # TODO: Remove this
       new_record
     end
   end
 
 private
 
-  def rebalance(t)
-    self.class.new(values_at_time(t))
+  def rebalance(t, d)
+    value = values_at_time(t)
+    value[d.index] = d.new_value
+    self.class.new(value)
   end
 
   # A special case is required when adding a back link to a parent that has
