@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8">
+  <title>partial_persistence.rb</title>
+  <link rel="stylesheet" href="http://jashkenas.github.com/docco/resources/docco.css">
+</head>
+<body>
+<div id='container'>
+  <div id="background"></div>
+  <table cellspacing=0 cellpadding=0>
+  <thead>
+    <tr>
+      <th class=docs><h1>partial_persistence.rb</h1></th>
+      <th class=code></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr id='section-1'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-1">&#182;</a>
+        </div>
+        <p>A persistent data structure is one where all versions of the structure are
+kept, so that old versions can be queried. Partial persistence is a form of
+this where updates are only permitted on the latest version.</p>
+
+<p>The structure implemented here supports partial persistence with amortized
+constant time multiplicative overhead for both queries and updates (meaning
+that no matter how many modifications you make, the overhead cost stays
+constant), and <code>O(1)</code> space per change. In other words, you can get full
+history of a data structure basically for free, which is pretty neat.</p>
+
+<p>It was initially outlined in the 1986 paper &ldquo;Making data structures
+persistent&rdquo; by Driscoll, Sarnak, Sleator and Tarjan, though my understanding
+of it comes via lecture one of the &ldquo;Advanced Data Structures&rdquo; class at MIT,
+<a href="http://courses.csail.mit.edu/6.851/spring12/lectures/L01.html">available
+online</a>.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre></pre></div>
+      </td>
+    </tr>
+    <tr id='section-2'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-2">&#182;</a>
+        </div>
+        <p>Minitest is used both to document and verify behaviour.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="nb">require</span> <span class="s1">&#39;minitest/autorun&#39;</span>
+
+<span class="k">class</span> <span class="nc">PartialPersistenceTest</span> <span class="o">&lt;</span> <span class="no">MiniTest</span><span class="o">::</span><span class="no">Unit</span><span class="o">::</span><span class="no">TestCase</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-3'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-3">&#182;</a>
+        </div>
+        <p>This code demonstrates partial persistence of a record-based data structure.
+Each element in the record is either a value or a pointer to another record.
+Updates are performed by specifying a path to the record, an index into
+that record, and the new value. Querying is done by inspecting the entire
+structure at a point in time.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">test_interface</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="no">PartialPersistence</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="o">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="o">]]</span><span class="p">)</span>
+    <span class="n">ds</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">[]</span><span class="p">,</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+    <span class="n">ds</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="n">assert_equal</span> <span class="o">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="o">]]</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">assert_equal</span> <span class="o">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="o">]]</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">assert_equal</span> <span class="o">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">9</span><span class="o">]]</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">test_performance</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="no">PartialPersistence</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="o">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="o">]]</span><span class="p">)</span>
+    <span class="n">range</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">.</span><span class="n">.</span><span class="no">Record</span><span class="o">::</span><span class="no">MAX_DELTAS</span><span class="o">*</span><span class="mi">11</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">range</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="n">ds</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">end</span>
+
+    <span class="n">range</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="n">assert_equal</span> <span class="o">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="o">[</span><span class="mi">3</span><span class="p">,</span> <span class="n">x</span><span class="o">]]</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-4'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-4">&#182;</a>
+        </div>
+        <p>The theory holds for cyclic data structures, but this implementation does
+not yet support them.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">test_cyclic</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Data_Structures'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Data_Structures">&#182;</a>
+        </div>
+        <h2>Data Structures</h2>
+
+<h3>Record</h3>
+
+<p>The core element in the data structure is a record, which is composed of
+three elements.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Record</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-6'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-6">&#182;</a>
+        </div>
+        <p>The first is an immutable list of initial values. Each value is either a
+piece of data being stored, or a link to another record.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="kp">attr_reader</span> <span class="ss">:values</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-7'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-7">&#182;</a>
+        </div>
+        <p>Alongside the values, a list of deltas (modifications) is stored. The value
+of the record at time <em>t</em> is <code>values</code> with <code>deltas</code> applied to <em>t</em>.</p>
+
+<p>This is sufficient to achieve partial persistence, but requires <code>O(m)</code> time
+to query the current version since all deltas need to be applied from the
+beginning of time.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">class</span> <span class="nc">Delta</span> <span class="o">&lt;</span> <span class="no">Struct</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="ss">:t</span><span class="p">,</span> <span class="ss">:index</span><span class="p">,</span> <span class="ss">:new_value</span><span class="p">)</span>
+  <span class="k">end</span>
+  <span class="kp">attr_reader</span> <span class="ss">:deltas</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-8'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-8">&#182;</a>
+        </div>
+        <p>To achieve amortized constant time the structure needs to be rebalanced
+periodically, which may involve creating new records. For this to work, all
+links between records are stored bi-directionally so that they can be
+quickly updated when a new record is created. The forward link is already
+stored in <code>values</code>, here a separate list of the back links is stored.  If
+record <code>A</code> has record <code>B</code> as a value at <code>values[1]</code>, then <code>B</code> will store a
+back link <code>(A, 1)</code>.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">class</span> <span class="nc">Backlink</span> <span class="o">&lt;</span> <span class="no">Struct</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="ss">:record</span><span class="p">,</span> <span class="ss">:index</span><span class="p">);</span> <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">add_backlink</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+    <span class="vi">@backlinks</span> <span class="o">&lt;&lt;</span> <span class="no">Backlink</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+  <span class="k">end</span>
+  <span class="kp">attr_reader</span> <span class="ss">:backlinks</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-9'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-9">&#182;</a>
+        </div>
+        <p>Initially <code>deltas</code> and <code>backlinks</code> are empty, though the latter will always
+be added to immediately at least once since a record cannot exist without
+being referenced from somewhere.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+    <span class="vi">@values</span>    <span class="o">=</span> <span class="n">values</span>
+    <span class="vi">@deltas</span>    <span class="o">=</span> <span class="o">[]</span>
+    <span class="vi">@backlinks</span> <span class="o">=</span> <span class="o">[]</span>
+    <span class="vi">@values</span><span class="o">.</span><span class="n">each</span><span class="o">.</span><span class="n">with_index</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span>
+      <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">is_a?</span><span class="p">(</span><span class="no">Record</span><span class="p">)</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">add_backlink</span><span class="p">(</span><span class="nb">self</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Root'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Root">&#182;</a>
+        </div>
+        <h3>Root</h3>
+
+<p>A special root node is required to act as a constant entry point for the
+structure. Since records can be rebalanced and new records created, without
+this entry point there is no way to know which record to start with for a
+given version! An efficient implementation of the root node is outside the
+scope of what is being demonstrated. A naive but easy to understand
+implementation is provided so as not to distract.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Root</span>
+  <span class="kp">attr_reader</span> <span class="ss">:records</span>
+
+  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+    <span class="vi">@records</span> <span class="o">=</span> <span class="p">{</span> <span class="mi">0</span> <span class="o">=&gt;</span> <span class="n">record</span> <span class="p">}</span>
+    <span class="n">record</span><span class="o">.</span><span class="n">add_backlink</span><span class="p">(</span><span class="nb">self</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+  <span class="k">end</span>
+
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-PartialPersistence'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-PartialPersistence">&#182;</a>
+        </div>
+        <h3>PartialPersistence</h3>
+
+<p>An overall wrapper class is provided to act as the public interface for the
+structure.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">PartialPersistence</span>
+  <span class="kp">attr_reader</span> <span class="ss">:now</span>
+  <span class="kp">attr_reader</span> <span class="ss">:root</span>
+
+<span class="kp">protected</span>
+
+  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+    <span class="vi">@root</span> <span class="o">=</span> <span class="no">Root</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+    <span class="vi">@now</span>  <span class="o">=</span> <span class="mi">0</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Algorithms'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Algorithms">&#182;</a>
+        </div>
+        <h2>Algorithms</h2>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Queries'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Queries">&#182;</a>
+        </div>
+        <h3>Queries</h3>
+
+<p>For an individual record, the <code>values</code> at any <em>t</em> can be queried by applying
+all deltas against the base values. Since the maximum number of deltas is
+constant (rebalancing occurs if it is exceeded, see &ldquo;updates&rdquo; section), this
+operation completes in amortized constant time: it will not increase as
+overall number of updates increases.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Record</span>
+  <span class="k">def</span> <span class="nf">values_at_time</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">dup</span>
+
+    <span class="n">deltas</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">d</span><span class="o">|</span>
+      <span class="k">break</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">t</span> <span class="o">&gt;</span> <span class="n">t</span>
+      <span class="n">base</span><span class="o">[</span><span class="n">d</span><span class="o">.</span><span class="n">index</span><span class="o">]</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">new_value</span>
+    <span class="k">end</span>
+
+    <span class="n">base</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-14'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-14">&#182;</a>
+        </div>
+        <p>A special case for handling deltas is required for the root node, otherwise
+there is no way to get get a handle on an initial node for any given
+version.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Root</span>
+  <span class="k">def</span> <span class="nf">value_at_time</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">records</span><span class="o">.</span><span class="n">to_a</span><span class="o">.</span><span class="n">reverse</span><span class="o">.</span><span class="n">detect</span> <span class="p">{</span><span class="o">|</span><span class="n">tn</span><span class="p">,</span> <span class="n">_</span><span class="o">|</span>
+      <span class="n">tn</span> <span class="o">&lt;=</span> <span class="n">t</span>
+    <span class="p">}</span><span class="o">.</span><span class="n">last</span>
+  <span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-15'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-15">&#182;</a>
+        </div>
+        <p><code>unwrap</code>, the inverse of <code>wrap</code>, takes an optional time parameter that is
+used to query historical versions. By default, the current version is
+returned. It recursively unwraps all records in the structure.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">unwrap</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">unwrapper</span> <span class="o">=</span> <span class="nb">lambda</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+      <span class="k">case</span> <span class="n">x</span>
+      <span class="k">when</span> <span class="no">Record</span> <span class="k">then</span> <span class="n">x</span><span class="o">.</span><span class="n">values_at_time</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="o">&amp;</span><span class="n">unwrapper</span><span class="p">)</span>
+      <span class="k">else</span> <span class="n">x</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+    <span class="n">unwrapper</span><span class="o">[</span><span class="n">value_at_time</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">]</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">PartialPersistence</span>
+  <span class="k">def</span> <span class="nf">unwrap</span><span class="p">(</span><span class="n">t</span> <span class="o">=</span> <span class="n">now</span><span class="p">)</span>
+    <span class="vi">@root</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Updates'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Updates">&#182;</a>
+        </div>
+        <h3>Updates</h3>
+
+<p>Updating first requires querying the current version of the structure to
+extract the record referenced by the given <code>indices</code>.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">PartialPersistence</span>
+  <span class="k">def</span> <span class="nf">set</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="n">current_root</span>   <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">value_at_time</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+    <span class="n">current_record</span> <span class="o">=</span> <span class="n">record_at_path</span><span class="p">(</span><span class="n">current_root</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-17'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-17">&#182;</a>
+        </div>
+        <p>Every update creates a new version, whether the structure actually
+changed or not. This is not strictly space efficient, but has no impact
+on time (since performance is amortized constant) and provides an easier
+to use interface: clients can keep track of the current time without
+having to check the return value of this method.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>    <span class="vi">@now</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">current_record</span><span class="o">.</span><span class="n">add_delta</span><span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+  <span class="k">end</span>
+
+<span class="kp">private</span>
+
+  <span class="k">def</span> <span class="nf">record_at_path</span><span class="p">(</span><span class="n">initial</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+    <span class="n">path</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">initial</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">record</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span>
+      <span class="n">record</span><span class="o">.</span><span class="n">values_at_time</span><span class="p">(</span><span class="n">now</span><span class="p">)</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="k">class</span> <span class="nc">Record</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-18'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-18">&#182;</a>
+        </div>
+        <p>This is the heart of the algorithm. When the number of deltas
+crosses a threshold, the structure is rebalanced by performing the
+following operations:</p>
+
+<ol>
+<li>Create a new record containing the current value of this record
+(<code>values_at_time(t)</code>). Note that this new record will not have any
+deltas.</li>
+<li>Copy all back links from the old record to the new.</li>
+<li>Add a delta to all back links, pointing them to the new record.</li>
+</ol>
+
+<p>Now, any queries for time <em>t</em> will bypass the old record completely and
+instead use the new record, which responds quickly since it does not have
+any deltas yet. This process of &ldquo;resetting&rdquo; the deltas of each node is the
+key to the amortized constant performance of the algorithm.  All existing
+modifications are left in place on the old record, so that queries for
+historical versions can still find them.</p>
+
+<p>Note that adding a delta to a parent record may in turn trigger a rebalance
+of that record as well!</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">add_delta</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="no">Delta</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">deltas</span><span class="o">.</span><span class="n">length</span> <span class="o">&lt;</span> <span class="no">MAX_DELTAS</span>
+      <span class="n">deltas</span> <span class="o">&lt;&lt;</span> <span class="n">d</span>
+      <span class="nb">self</span>
+    <span class="k">else</span>
+      <span class="n">new_record</span> <span class="o">=</span> <span class="n">rebalance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+      <span class="n">copy_backlinks</span><span class="p">(</span><span class="n">new_record</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+      <span class="n">clear_backlinks</span>
+      <span class="n">new_record</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+<span class="kp">private</span>
+
+  <span class="k">def</span> <span class="nf">rebalance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">values_at_time</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">value</span><span class="o">[</span><span class="n">d</span><span class="o">.</span><span class="n">index</span><span class="o">]</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">new_value</span>
+    <span class="nb">self</span><span class="o">.</span><span class="n">class</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+  <span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-19'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-19">&#182;</a>
+        </div>
+        <p>A special case is required when adding a back link to a parent that has
+itself just rebalanced. In this case, the parent has already added itself
+as a back link to the record as part of the creation process, so it should
+not be added again here.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">copy_backlinks</span><span class="p">(</span><span class="n">new_record</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+    <span class="n">backlinks</span><span class="o">.</span><span class="n">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">l</span><span class="o">|</span>
+      <span class="n">new_back_record</span>   <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">record</span><span class="o">.</span><span class="n">add_delta</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">l</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">new_record</span><span class="p">)</span>
+      <span class="n">parent_rebalanced</span> <span class="o">=</span> <span class="n">new_back_record</span> <span class="o">!=</span> <span class="n">l</span><span class="o">.</span><span class="n">record</span>
+
+      <span class="k">unless</span> <span class="n">parent_rebalanced</span>
+        <span class="n">new_record</span><span class="o">.</span><span class="n">add_backlink</span><span class="p">(</span>
+          <span class="n">new_back_record</span><span class="p">,</span>
+          <span class="n">l</span><span class="o">.</span><span class="n">index</span>
+        <span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-20'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-20">&#182;</a>
+        </div>
+        <p>A node can only ever be rebalanced once, meaning that the back links no
+longer need to be stored after it has happened.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="k">def</span> <span class="nf">clear_backlinks</span>
+    <span class="vi">@backlinks</span> <span class="o">=</span> <span class="o">[]</span>
+  <span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-21'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-21">&#182;</a>
+        </div>
+        <p>A caveat is that the amortized constant time bound only holds when the
+maximum number of back links to any one record is less than or equal to
+half the number of deltas stored per record.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre>  <span class="no">MAX_DELTAS</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-22'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-22">&#182;</a>
+        </div>
+        <p>As mentioned above, a naive implementation is provided for storing deltas in
+the root and is not relevant to the structure being presented.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Root</span>
+  <span class="k">def</span> <span class="nf">add_delta</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="k">unless</span> <span class="n">index</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="vi">@records</span><span class="o">[</span><span class="n">t</span><span class="o">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="nb">self</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Construction'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Construction">&#182;</a>
+        </div>
+        <h3>Construction</h3>
+
+<p>For convencience, a <code>wrap</code> method is provided to recursively convert a
+plain nested array into this partially persistent data structure.</p>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">def</span> <span class="nc">PartialPersistence</span><span class="o">.</span><span class="nf">wrap</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+  <span class="n">wrapper</span> <span class="o">=</span> <span class="nb">lambda</span> <span class="k">do</span> <span class="o">|</span><span class="n">x</span><span class="o">|</span>
+    <span class="k">case</span> <span class="n">x</span>
+    <span class="k">when</span> <span class="nb">Array</span> <span class="k">then</span> <span class="no">Record</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="o">&amp;</span><span class="n">wrapper</span><span class="p">))</span>
+    <span class="k">else</span> <span class="n">x</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+  <span class="kp">new</span><span class="p">(</span><span class="n">wrapper</span><span class="o">[</span><span class="n">array</span><span class="o">]</span><span class="p">)</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Debugging'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Debugging">&#182;</a>
+        </div>
+        <h2>Debugging</h2>
+
+<h3>Labelings</h3>
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Delta</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+    <tr id='section-Visualization'>
+      <td class=docs>
+        <div class="pilwrap">
+          <a class="pilcrow" href="#section-Visualization">&#182;</a>
+        </div>
+        <h3>Visualization</h3>
+
+<p>Programatically creating a diagram of the structure with GraphViz is straight
+forward, yet finicky.</p>
+
+<p>The initial example is represent thusly:</p>
+
+<p><img src="partially-persistent-example.png" alt="Diagram">
+</p>
+
+      </td>
+      <td class=code>
+        <div class='highlight'><pre><span class="k">class</span> <span class="nc">Visualizer</span>
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">output</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;output.png&#39;</span><span class="p">)</span>
+    <span class="nb">require</span> <span class="s1">&#39;graphviz&#39;</span>
+
+    <span class="n">g</span> <span class="o">=</span> <span class="no">GraphViz</span><span class="o">::</span><span class="kp">new</span><span class="p">(</span><span class="s2">&quot;structs&quot;</span><span class="p">)</span>
+
+    <span class="n">add_root</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
+    <span class="no">ObjectSpace</span><span class="o">.</span><span class="n">each_object</span><span class="p">(</span><span class="no">Record</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">record</span><span class="o">|</span>
+      <span class="n">add_record</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">record</span><span class="p">)</span>
+    <span class="k">end</span>
+
+    <span class="n">g</span><span class="o">.</span><span class="n">output</span><span class="p">(</span> <span class="ss">:png</span> <span class="o">=&gt;</span> <span class="n">filename</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">add_root</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+    <span class="n">g</span><span class="o">.</span><span class="n">add_nodes</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span>
+      <span class="s2">&quot;shape&quot;</span> <span class="o">=&gt;</span> <span class="s2">&quot;record&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;label&quot;</span> <span class="o">=&gt;</span> <span class="n">root</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">map</span> <span class="p">{</span><span class="o">|</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span><span class="o">|</span>
+        <span class="s2">&quot;&lt;t%i&gt; T%i&quot;</span> <span class="o">%</span> <span class="o">[</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="o">]</span>
+      <span class="p">}</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">root</span><span class="o">.</span><span class="n">records</span><span class="o">.</span><span class="n">map</span> <span class="p">{</span><span class="o">|</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">child</span><span class="p">)</span><span class="o">|</span>
+      <span class="n">g</span><span class="o">.</span><span class="n">add_edges</span><span class="p">(</span> <span class="p">{</span><span class="n">root</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span> <span class="o">=&gt;</span> <span class="s2">&quot;t</span><span class="si">#{</span><span class="n">t</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">},</span> <span class="n">child</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span> <span class="p">)</span>
+    <span class="p">}</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">add_record</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">record</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">map</span><span class="o">.</span><span class="n">with_index</span> <span class="p">{</span><span class="o">|</span><span class="n">v</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span> <span class="s2">&quot;&lt;v%s&gt; %s&quot;</span> <span class="o">%</span> <span class="o">[</span><span class="n">i</span><span class="p">,</span> <span class="n">label</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">]</span> <span class="p">}</span>
+    <span class="n">deltas</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">deltas</span><span class="o">.</span><span class="n">map</span><span class="o">.</span><span class="n">with_index</span> <span class="p">{</span><span class="o">|</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span> <span class="s2">&quot;&lt;d%s&gt; %s&quot;</span> <span class="o">%</span> <span class="o">[</span><span class="n">i</span><span class="p">,</span> <span class="n">label</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">]</span> <span class="p">}</span>
+
+    <span class="n">g</span><span class="o">.</span><span class="n">add_nodes</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span>
+      <span class="s2">&quot;shape&quot;</span> <span class="o">=&gt;</span> <span class="s2">&quot;record&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;label&quot;</span> <span class="o">=&gt;</span> <span class="o">[</span>
+        <span class="n">values</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">),</span>
+        <span class="n">deltas</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">)</span>
+      <span class="o">].</span><span class="n">map</span> <span class="p">{</span><span class="o">|</span><span class="n">x</span><span class="o">|</span> <span class="s2">&quot;{%s}&quot;</span> <span class="o">%</span> <span class="n">x</span> <span class="p">}</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">add_edges</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="o">-&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">){</span> <span class="n">x</span> <span class="p">},</span> <span class="s2">&quot;v&quot;</span><span class="p">)</span>
+    <span class="n">add_edges</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">deltas</span><span class="p">,</span> <span class="o">-&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">){</span> <span class="n">x</span><span class="o">.</span><span class="n">new_value</span> <span class="p">},</span> <span class="s2">&quot;d&quot;</span><span class="p">)</span>
+    <span class="n">add_edges</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">backlinks</span><span class="p">,</span> <span class="o">-&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">){</span> <span class="n">x</span><span class="o">.</span><span class="n">record</span> <span class="p">},</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+      <span class="n">style</span><span class="p">:</span>     <span class="s1">&#39;dotted&#39;</span><span class="p">,</span>
+      <span class="n">arrowhead</span><span class="p">:</span> <span class="s1">&#39;empty&#39;</span>
+    <span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">add_edges</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">children</span><span class="p">,</span> <span class="n">unwrap</span><span class="p">,</span> <span class="n">source_prefix</span><span class="p">,</span> <span class="n">opts</span> <span class="o">=</span> <span class="p">{})</span>
+    <span class="n">children</span><span class="o">.</span><span class="n">each</span><span class="o">.</span><span class="n">with_index</span> <span class="k">do</span> <span class="o">|</span><span class="n">child</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span>
+      <span class="n">child</span> <span class="o">=</span> <span class="n">unwrap</span><span class="o">[</span><span class="n">child</span><span class="o">]</span>
+      <span class="k">next</span> <span class="k">unless</span> <span class="n">child</span><span class="o">.</span><span class="n">is_a?</span><span class="p">(</span><span class="no">Record</span><span class="p">)</span> <span class="o">||</span> <span class="n">child</span><span class="o">.</span><span class="n">is_a?</span><span class="p">(</span><span class="no">Root</span><span class="p">)</span>
+
+      <span class="n">g</span><span class="o">.</span><span class="n">add_edges</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">parent</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span> <span class="o">=&gt;</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">source_prefix</span><span class="si">}#{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">},</span>
+        <span class="n">child</span><span class="o">.</span><span class="n">object_id</span><span class="o">.</span><span class="n">to_s</span><span class="p">,</span>
+        <span class="n">opts</span>
+      <span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">label</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">case</span> <span class="n">v</span>
+    <span class="k">when</span> <span class="no">Record</span> <span class="k">then</span> <span class="s2">&quot;Record&quot;</span>
+    <span class="k">when</span> <span class="no">Record</span><span class="o">::</span><span class="no">Delta</span> <span class="k">then</span>
+      <span class="s2">&quot;%i@T%i = %s&quot;</span> <span class="o">%</span> <span class="o">[</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">t</span><span class="p">,</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">new_value</span><span class="o">.</span><span class="n">is_a?</span><span class="p">(</span><span class="no">Record</span><span class="p">)</span> <span class="p">?</span> <span class="s2">&quot;Record&quot;</span> <span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">new_value</span>
+      <span class="o">]</span>
+    <span class="k">else</span>
+      <span class="n">v</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span></pre></div>
+      </td>
+    </tr>
+  </table>
+</div>
+</body>
