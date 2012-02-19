@@ -322,6 +322,10 @@ end
 #
 # Programatically creating a diagram of the structure with GraphViz is straight
 # forward, yet finicky.
+#
+# The initial example is represent thusly:
+#
+# ![Diagram](partially-persistent-example.png)
 
 class Visualizer
   def self.output(ds, filename = 'output.png')
