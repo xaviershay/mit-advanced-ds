@@ -3,9 +3,15 @@
 # this where updates are only permitted on the latest version.
 #
 # The structure implemented here supports partial persistence with amortized
-# constant time performance (i.e. average `O(1)`) for both queries and updates,
-# which is pretty neat.  It was described in lecture one of the "Advanced Data
-# Structures" class at MIT, [available
+# constant time multiplicative overhead for both queries and updates (meaning
+# that no matter how many modifications you make, the overhead cost stays
+# constant), and `O(1)` space per change. In other words, you can get full
+# history of a data structure basically for free, which is pretty neat.
+#
+# It was initially outlined in the 1986 paper "Making data structures
+# persistent" by Driscoll, Sarnak, Sleator and Tarjan, though my understanding
+# of it comes via lecture one of the "Advanced Data Structures" class at MIT,
+# [available
 # online](http://courses.csail.mit.edu/6.851/spring12/lectures/L01.html).
 
 # Minitest is used both to document and verify behaviour.
@@ -28,7 +34,7 @@ class PartialPersistenceTest < MiniTest::Unit::TestCase
 
   def test_performance
     ds = PartialPersistence.wrap([1, 2, [3, -1]])
-    range = (1..101)
+    range = (1..Record::MAX_DELTAS*11+2)
     range.each do |x|
       ds.set([2], 1, x)
     end
@@ -62,13 +68,6 @@ class Record
   # to query the current version since all deltas need to be applied from the
   # beginning of time.
   class Delta < Struct.new(:t, :index, :new_value)
-    def inspect
-      "%i@T%i = %s" % [
-        index,
-        t,
-        new_value.is_a?(Record) ? "Record" : new_value
-      ]
-    end
   end
   attr_reader :deltas
 
@@ -353,7 +352,7 @@ class Visualizer
 
   def self.add_record(g, record)
     values = record.values.map.with_index {|v, i| "<v%s> %s" % [i, label(v)] }
-    deltas = record.deltas.map.with_index {|d, i| "<d%s> %s" % [i, d.inspect] }
+    deltas = record.deltas.map.with_index {|d, i| "<d%s> %s" % [i, label(d)] }
 
     g.add_nodes(record.object_id.to_s,
       "shape" => "record",
@@ -385,8 +384,14 @@ class Visualizer
   end
 
   def self.label(v)
-    if v.is_a?(Record)
-      "Record"
+    case v
+    when Record then "Record"
+    when Record::Delta then
+      "%i@T%i = %s" % [
+        v.index,
+        v.t,
+        v.new_value.is_a?(Record) ? "Record" : v.new_value
+      ]
     else
       v
     end
