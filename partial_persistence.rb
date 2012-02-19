@@ -163,6 +163,17 @@ describe 'partial persistence' do
     ds.unwrap(2).should == [1, [5, 4]]
   end
 
+  it 'supports cyclic arrays' do
+    pending
+    b = []
+    a = [1, b]
+    b << a
+    ds = PartiallyPersistentArray.wrap(a)
+    ds.set([1, 1, 1, 1, 1, 0], 2)
+    ds.unwrap(0).should == a
+    ds.unwrap(1).should == [2, b]
+  end
+
   it 'rebalances the root' do
     ds = PartiallyPersistentArray.wrap([0])
     (1..100).each do |x|
