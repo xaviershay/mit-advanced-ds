@@ -1,3 +1,4 @@
+# encoding: utf-8
 # Trying to implement partial persistence as described in
 # http://courses.csail.mit.edu/6.851/spring12/lectures/L01.html
 #
@@ -17,6 +18,14 @@ class PartiallyPersistentArray
 
   def inspect
     "<PartiallyPersistentArray #{@root.inspect}>"
+  end
+  
+  def output(filename = 'output.png')
+    require 'graphviz'
+
+    g = GraphViz::new("structs")
+    @root.to_graph(g)
+    g.output( :png => filename)
   end
 
   def initialize(node)
@@ -81,10 +90,57 @@ private
     def inspect
       "<Root #{@roots.inspect}>"
     end
+
+    def to_graph(g)
+      g.add_nodes(self.object_id.to_s, 
+        "shape" => "record",
+        "label" => @roots.map.with_index {|(v, _), i|
+          "<f#{v}> #{v}"
+        }.join("|")
+      )
+      all_nodes = []
+      @roots.each do |v, node|
+        node.add_to_graph(g, all_nodes)
+
+        # Add edges from t to nodes
+        g.add_edges( {self.object_id.to_s => "v#{v}"}, "#{node.object_id}" )
+      end
+
+    end
   end
 
   class Node
-    def initialize(slots, max_mods = 20)
+    def add_to_graph(g, all_nodes)
+      # Add self
+      g.add_nodes(self.object_id.to_s,
+        "shape" => "record",
+        "label" => [
+          @slots.map.with_index {|x, i| "<s#{i}> #{x.is_a?(Node) ? "Node" : x}"}.join("|"),
+          @modifications.map {|(t, idx, value)| "<m#{t}> #{idx} @ T#{t} = #{value.is_a?(Node) ? "Node" : value}"}.join("|")
+        ].map {|x| "{#{x}}" }.join("|").tap {|y| puts y })
+
+      # Add node slots
+      @slots.each.with_index do |node, s|
+        next unless node.is_a?(Node)
+
+        node.add_to_graph(g, all_nodes)
+
+        # Add edges from slots to nodes
+        g.add_edges( {self.object_id.to_s => "s#{s}"}, "#{node.object_id}" )
+      end
+
+      # Add edges from mods
+      @modifications.each {|(t, idx, node)|
+        next unless node.is_a?(Node)
+
+        node.add_to_graph(g, all_nodes)
+
+        # Add edges from mods to nodes
+        g.add_edges( {self.object_id.to_s => "m#{t}"}, "#{node.object_id}" )
+      }
+    end
+
+    def initialize(slots, max_mods = 9)
       @slots         = slots
       @modifications = []
       @max_mods      = max_mods
@@ -158,6 +214,8 @@ describe 'partial persistence' do
     ds = PartiallyPersistentArray.wrap([1, [2, 3]])
     ds.set([1, 1], 4)
     ds.set([1, 0], 5)
+    ds.set([0], 7)
+    ds.set([1, 0], 8)
     ds.unwrap(0).should == [1, [2, 3]]
     ds.unwrap(1).should == [1, [2, 4]]
     ds.unwrap(2).should == [1, [5, 4]]
@@ -192,5 +250,6 @@ describe 'partial persistence' do
     (0..100).each do |x|
       ds.unwrap(x).should == [[x]]
     end
+    ds.output
   end
 end
