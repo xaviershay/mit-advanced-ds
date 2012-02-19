@@ -3,6 +3,7 @@
 # http://courses.csail.mit.edu/6.851/spring12/lectures/L01.html
 #
 # Draft
+$nodes = []
 class PartiallyPersistentArray
   attr_reader :current_version
 
@@ -19,7 +20,7 @@ class PartiallyPersistentArray
   def inspect
     "<PartiallyPersistentArray #{@root.inspect}>"
   end
-  
+
   def output(filename = 'output.png')
     require 'graphviz'
 
@@ -78,6 +79,7 @@ private
     def set(index, value, version)
       raise unless index == 0
       @roots[version] = value
+      self
     end
 
     def get(version)
@@ -88,11 +90,14 @@ private
     end
 
     def inspect
-      "<Root #{@roots.inspect}>"
+      "<Root>" # #{@roots.inspect}>"
+    end
+    def number
+      0
     end
 
     def to_graph(g)
-      g.add_nodes(self.object_id.to_s, 
+      g.add_nodes(self.object_id.to_s,
         "shape" => "record",
         "label" => @roots.map.with_index {|(v, _), i|
           "<f#{v}> #{v}"
@@ -138,9 +143,15 @@ private
         # Add edges from mods to nodes
         g.add_edges( {self.object_id.to_s => "m#{t}"}, "#{node.object_id}" )
       }
+
+      @backlinks.each {|(node, idx)|
+        g.add_edges( self.object_id.to_s, "#{node.object_id}" )
+      }
     end
 
-    def initialize(slots, max_mods = 3)
+    def initialize(slots, max_mods = 20)
+      $nodes << self
+      @number = $nodes.length
       @slots         = slots
       @modifications = []
       @max_mods      = max_mods
@@ -159,15 +170,24 @@ private
 
     def set(index, value, version)
       @modifications << [version, index, value]
+      @modifications.uniq!
 
       if @modifications.length < @max_mods
         self
       else
+        puts "REBALANCING @ #{version}: #{@modifications.map(&:first)}"
         new_node = rebalance(version)
-        @backlinks.each do |(node, index)|
-          node.set(index, new_node, version)
+        @backlinks.each do |(node, backlink_index)|
+            back_node = node.set(backlink_index, new_node, version)
+        puts "BACK: " + back_node.inspect
+          new_node.add_backlink(
+            back_node,
+            backlink_index
+          )
         end
+        puts "NEW: " + new_node.inspect
         @modifications.pop
+        new_node
       end
     end
 
@@ -181,18 +201,17 @@ private
       base
     end
 
+    attr_reader :number
     def inspect
-      "<Node #{@slots.inspect} mods=#{@modifications.inspect} backlinks=#{@backlinks.inspect}>"
+      "<Node:#{number} " +
+      "#{@slots.map {|x| x.is_a?(Node) ? "N#{x.number}" : x }}" +
+        " mods=#{@modifications.map {|(t, idx, value)| "#{idx}@#{t} #{value.is_a?(Node) ? "N#{value.number}" : value}" }} backlinks=#{@backlinks.map(&:first).map(&:number)}>"
     end
 
   private
 
     def rebalance(version)
-      node = Node.new(slots_at_time(version))
-      @backlinks.each do |x|
-        node.add_backlink(*x)
-      end
-      node
+      Node.new(slots_at_time(version))
     end
   end
 end
@@ -243,13 +262,24 @@ describe 'partial persistence' do
   end
 
   it 'rebalances nested arrays' do
-    ds = PartiallyPersistentArray.wrap([[0]])
-    (1..10).each do |x|
+    ds = PartiallyPersistentArray.wrap([[0], "abc"])
+    begin
+    puts ds.inspect
+    (1..100).each do |x|
       ds.set([0, 0], x)
+    $nodes.each do |node|
+      puts node.inspect
     end
-    (0..10).each do |x|
-      ds.unwrap(x).should == [[x]]
+    puts
+    end
+#     (0..25).each do |x|
+#       ds.unwrap(x).should == [[x]]
+#     end
+    ensure
+    $nodes.each do |node|
+      puts node.inspect
     end
     ds.output
+    end
   end
 end
