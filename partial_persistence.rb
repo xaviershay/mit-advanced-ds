@@ -140,7 +140,7 @@ private
       }
     end
 
-    def initialize(slots, max_mods = 9)
+    def initialize(slots, max_mods = 3)
       @slots         = slots
       @modifications = []
       @max_mods      = max_mods
@@ -244,10 +244,10 @@ describe 'partial persistence' do
 
   it 'rebalances nested arrays' do
     ds = PartiallyPersistentArray.wrap([[0]])
-    (1..100).each do |x|
+    (1..10).each do |x|
       ds.set([0, 0], x)
     end
-    (0..100).each do |x|
+    (0..10).each do |x|
       ds.unwrap(x).should == [[x]]
     end
     ds.output
