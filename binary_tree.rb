@@ -102,6 +102,10 @@ class BinaryTree
         left.minimum
       end
     end
+
+    def leaf?
+      left.empty? && right.empty?
+    end
   end
 
   def initialize
