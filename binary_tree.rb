@@ -7,17 +7,19 @@ require 'minitest/autorun'
 # delete, and include.
 class BinaryTreeTest < MiniTest::Unit::TestCase
   def test_operations
-    set   = BinaryTree.new
-    range = (0..100).to_a
-    range.sort_by { rand }.each {|x| set.insert(x) }
+    50.times do
+      set   = BinaryTree.new
+      range = (0..50).to_a
+      range.sort_by { rand }.each {|x| set.insert(x) }
 
-    keep   = range[0..range.length/2]
-    remove = range[range.length/2+1..-1]
+      keep   = range[0..range.length/2]
+      remove = range[range.length/2+1..-1]
 
-    remove.sort_by { rand }.each {|x| set.delete(x) }
+      remove.sort_by { rand }.each {|x| set.delete(x) }
 
-    keep  .each { |x| assert  set.include?(x), "Did not include #{x}" }
-    remove.each { |x| assert !set.include?(x), "Did include #{x}" }
+      keep  .each { |x| assert  set.include?(x), "Did not include #{x}" }
+      remove.each { |x| assert !set.include?(x), "Did include #{x}" }
+    end
   end
 end
 
