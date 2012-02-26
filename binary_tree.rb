@@ -28,11 +28,12 @@ end
 
 class BinaryTree
   class Node < Struct.new(:value, :left, :right)
-    def empty?; !value; end
-    def inspect
-      return '-' if empty?
+    EMPTY = Class.new
 
-      buffer = "<#{value} #{left.inspect} #{right.inspect}>"
+    def empty?; self.value == EMPTY; end
+
+    def self.empty
+      new(EMPTY)
     end
 
     def insert(x)
@@ -62,12 +63,12 @@ class BinaryTree
       end
     end
 
-    def self.empty
-      new(nil)
+    def inspect
+      return '-' if empty?
+
+      buffer = "<#{value} #{left.inspect} #{right.inspect}>"
     end
   end
-
-  attr_accessor :root
 
   def initialize
     @root = Node.empty
@@ -80,4 +81,7 @@ class BinaryTree
   def include?(x)
     root.include?(x)
   end
+
+private
+  attr_accessor :root
 end
