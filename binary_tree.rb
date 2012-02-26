@@ -41,11 +41,7 @@ class BinaryTree
         self.left  = Node.empty
         self.right = Node.empty
       else
-        if x < value
-          left.insert(x)
-        else
-          right.insert(x)
-        end
+        compare(x).insert(x)
       end
     end
 
@@ -53,11 +49,7 @@ class BinaryTree
       return false if empty?
       return true  if x == value
 
-      if x < value
-        left.include?(x)
-      else
-        right.include?(x)
-      end
+      compare(x).include?(x)
     end
 
     def delete(x)
@@ -68,16 +60,14 @@ class BinaryTree
       elsif right.value == x
         self.right = right.promote(x)
       elsif left.value == x
-        self.left = left.promote(x)
-      elsif x < value
-        left.delete(x)
+        self.left  = left.promote(x)
       else
-        right.delete(x)
+        compare(x).delete(x)
       end
     end
 
     def promote(x)
-      if left.empty? && right.empty?
+      if leaf?
         Node.empty
       elsif right.empty?
         left
@@ -95,6 +85,16 @@ class BinaryTree
       return '-' if empty?
 
       buffer = "<#{value} #{left.inspect} #{right.inspect}>"
+    end
+
+    def compare(x)
+      if x == value
+        raise "Invalid compare, #{x} matches #{value}"
+      elsif x < value
+        left
+      else
+        right
+      end
     end
 
     def minimum
