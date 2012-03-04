@@ -28,18 +28,22 @@ def draw(ds, filename)
   ds.each do |node|
     p node
     g.add_nodes(node.object_id.to_s,
-      "shape" => "record",
       "label" => "%i (%i)" % [node.value.to_s, node.balance]
     )
 
     edge = lambda do |subtree|
-      unless subtree.empty?
-        g.add_edges(node.object_id.to_s, subtree.object_id.to_s)
+      g.add_edges(node.object_id.to_s, subtree.object_id.to_s)
+
+      if subtree.empty?
+        g.add_nodes(subtree.object_id.to_s,
+                    "label" => "Empty")
       end
     end
 
-    edge[node.left]
-    edge[node.right]
+    unless node.leaf?
+      edge[node.left]
+      edge[node.right]
+    end
   end
 
   g.output(:png => filename)
@@ -75,20 +79,24 @@ class AvlTree
         if x < value
           if left.insert(x)
             self.balance -= 1
-            parent.rebalance(-1)
+            parent.rebalance(self, 1)
           end
         else
           if right.insert(x)
             self.balance += 1
-            parent.rebalance(1)
+            parent.rebalance(self, 1)
           end
         end
       end
     end
 
-    def rebalance(d)
-      self.balance += d
-      self.parent.rebalance(d)
+    def rebalance(child, d)
+      self.balance += if child == right
+        d
+      else
+        -d
+      end
+      self.parent.rebalance(self, d)
     end
 
     def include?(x)
@@ -103,6 +111,10 @@ class AvlTree
       subtree.include?(x)
     end
 
+    def leaf?
+      left.empty? && right.empty?
+    end
+
     def each(&block)
       return if empty?
 
@@ -113,7 +125,7 @@ class AvlTree
   end
 
   class PseudoRoot
-    def rebalance(d)
+    def rebalance(*args)
     end
   end
 
