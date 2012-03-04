@@ -83,7 +83,6 @@ def draw(ds, filename)
   g = GraphViz::new("structs")
 
   ds.each do |node|
-    p node
     g.add_nodes(node.object_id.to_s,
       "label" => "%i (%i)" % [node.value.to_s, node.balance]
     )
@@ -145,6 +144,53 @@ class AvlTree
       end
     end
 
+    def rotate_right
+      parent   = self.parent
+      old_head = self
+      new_head = left
+      transfer = new_head.right
+
+      old_head.left   = transfer
+      transfer.parent = old_head
+
+      new_head.right  = old_head
+      old_head.parent = new_head
+
+      # This probably isn't right...
+      new_head.balance = 0
+      old_head.balance = 0
+
+      parent.replace(old_head, new_head)
+    end
+
+    def rotate_left
+      parent    = self.parent
+      old_head  = self
+      new_head  = right
+      transfer  = new_head.left
+
+      old_head.right   = transfer
+      transfer.parent = old_head
+
+      new_head.left  = old_head
+      old_head.parent = new_head
+
+      # This probably isn't right...
+      new_head.balance = 0
+      old_head.balance = 0
+
+      parent.replace(old_head, new_head)
+    end
+
+    def replace(old, new)
+      if old == left
+        self.left = new
+      else
+        self.right = new
+      end
+      new.parent = self
+    end
+
     def rebalance(child, d)
       parent = self.parent
 
@@ -156,110 +202,19 @@ class AvlTree
 
       if balance == 2
         if left.balance == 1
-          # Rotate right
-          old_head  = self
-          new_head  = left
-          transfer  = new_head.right
-
-          old_head.left   = transfer
-          transfer.parent = old_head
-
-          new_head.right  = old_head
-          old_head.parent = new_head
-
-          # This probably isn't right...
-          new_head.balance = 0
-          old_head.balance = 0
-
-          parent.replace(old_head, new_head)
+          rotate_right
         elsif left.balance == -1
-          # Rotate left
-          old_head  = left
-          new_head  = left.right
-          transfer  = new_head.left
-
-          old_head.right  = transfer
-          transfer.parent = old_head
-
-          new_head.left   = old_head
-          old_head.parent = new_head
-
-          new_head.balance = 0
-          old_head.balance = 0
-
-          # Replace
-          self.left = new_head
-          new_head.parent = self
-
-          # Rotate right
-          old_head  = self
-          new_head  = left
-          transfer  = new_head.right
-
-          old_head.left   = transfer
-          transfer.parent = old_head
-
-          new_head.right  = old_head
-          old_head.parent = new_head
-
-          new_head.balance = 0
-          old_head.balance = 0
-
-          parent.replace(old_head, new_head)
+          left.rotate_left
+          rotate_right
         end
       end
 
       if balance == -2
         if right.balance == -1
-          old_head  = self
-          new_head  = right
-          transfer  = new_head.left
-
-          old_head.right  = transfer
-          transfer.parent = old_head
-
-          new_head.left   = old_head
-          old_head.parent = new_head
-
-          # This probably isn't right...
-          new_head.balance = 0
-          old_head.balance = 0
-
-          parent.replace(old_head, new_head)
+          rotate_left
         elsif right.balance == 1
-          # Rotate left
-          old_head  = right
-          new_head  = right.left
-          transfer  = new_head.right
-
-          old_head.left  = transfer
-          transfer.parent = old_head
-
-          new_head.right   = old_head
-          old_head.parent = new_head
-
-          new_head.balance = 0
-          old_head.balance = 0
-
-          # Replace
-          self.right = new_head
-          new_head.parent = self
-
-          # Rotate left
-          old_head  = self
-          new_head  = right
-          transfer  = new_head.left
-
-          old_head.right   = transfer
-          transfer.parent = old_head
-
-          new_head.left  = old_head
-          old_head.parent = new_head
-
-          new_head.balance = 0
-          old_head.balance = 0
-
-          parent.replace(old_head, new_head)
+          right.rotate_right
+          rotate_left
         end
       end
 
