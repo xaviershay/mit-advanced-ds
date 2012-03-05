@@ -110,8 +110,8 @@ class AvlTree
   class Node < Struct.new(:value, :parent, :left, :right)
     EMPTY = Class.new
 
-    def self.empty(parent)
-      new(EMPTY, parent)
+    def self.empty
+      new(EMPTY)
     end
 
     def empty?
@@ -129,8 +129,8 @@ class AvlTree
 
       if empty?
         self.value = x
-        self.left  = Node.empty(self)
-        self.right = Node.empty(self)
+        set(:left,  Node.empty)
+        set(:right, Node.empty)
 
         rebalance(self.parent)
       else
@@ -150,34 +150,28 @@ class AvlTree
       left.height - right.height
     end
 
-    def rotate_right
-      parent   = self.parent
-      old_head = self
-      new_head = left
-      transfer = new_head.right
+    def set(side, node)
+      if side == :right
+        self.right = node
+      else
+        self.left = node
+      end
 
-      old_head.left   = transfer
-      transfer.parent = old_head
-
-      new_head.right  = old_head
-      old_head.parent = new_head
-
-      parent.replace(old_head, new_head)
+      node.parent = self
     end
 
-    def rotate_left
-      parent    = self.parent
-      old_head  = self
-      new_head  = right
-      transfer  = new_head.left
+    def rotate(direction)
+      complement = direction == :left ? :right : :left
 
-      old_head.right   = transfer
-      transfer.parent = old_head
+      old_parent = self.parent
+      old_head   = self
+      new_head   = send(complement)
+      transfer   = new_head.send(direction)
 
-      new_head.left  = old_head
-      old_head.parent = new_head
+      old_head.set(complement, transfer)
+      new_head.set(direction,  old_head)
 
-      parent.replace(old_head, new_head)
+      old_parent.replace(old_head, new_head)
     end
 
     def replace(old, new)
@@ -194,19 +188,19 @@ class AvlTree
 
       if balance == 2
         if left.balance == 1
-          rotate_right
+          rotate(:right)
         elsif left.balance == -1
-          left.rotate_left
-          rotate_right
+          left.rotate(:left)
+          rotate(:right)
         end
       end
 
       if balance == -2
         if right.balance == -1
-          rotate_left
+          rotate(:left)
         elsif right.balance == 1
-          right.rotate_right
-          rotate_left
+          right.rotate(:right)
+          rotate(:left)
         end
       end
 
@@ -236,8 +230,8 @@ class AvlTree
       enum = Enumerator.new do |yielder|
         unless empty?
           yielder.yield self, h
-          left.each(h+1)  {|x, h| yielder.yield x, h }
-          right.each(h+1) {|x, h| yielder.yield x, h }
+          left.each(h+1)  {|x, hh| yielder.yield x, hh }
+          right.each(h+1) {|x, hh| yielder.yield x, hh }
         end
       end
 
@@ -261,7 +255,7 @@ class AvlTree
 
   def initialize
     @pseudo_root = PseudoRoot.new
-    @pseudo_root.node = Node.empty(@pseudo_root)
+    @pseudo_root.replace(nil, Node.empty)
   end
 
   def insert(x)
