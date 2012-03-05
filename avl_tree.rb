@@ -2,21 +2,24 @@ require 'minitest/autorun'
 
 class AvlTreeTest < MiniTest::Unit::TestCase
   def test_operations
-#     1.times do
-#       set   = AvlTree.new
-#       range = (0..5).to_a
-#       range.sort_by { rand }.each {|x| set.insert(x) }
-# 
-#       keep   = range[0..range.length/2]
-#       remove = range[range.length/2+1..-1]
-# 
-# #       remove.sort_by { rand }.each {|x| set.delete(x) }
-# 
-#       keep  .each { |x| assert  set.include?(x), "Did not include #{x}" }
-# #       remove.each { |x| assert !set.include?(x), "Did include #{x}" }
-# 
-#       draw(set, 'tree.png')
-#     end
+    10.times do
+      ds   = AvlTree.new
+      range = (0..50).to_a
+      range.sort_by { rand }.each {|x| ds.insert(x) }
+
+      keep   = range[0..range.length/2]
+      remove = range[range.length/2+1..-1]
+
+#       remove.sort_by { rand }.each {|x| ds.delete(x) }
+
+      keep  .each { |x| assert  ds.include?(x), "Did not include #{x}" }
+#       remove.each { |x| assert !ds.include?(x), "Did include #{x}" }
+
+#       draw(ds, 'tree.png')
+
+      assert_correct_balance_factors ds
+      assert_balanced ds
+    end
   end
 
   def test_right_right_rebalance_from_root
@@ -55,15 +58,13 @@ class AvlTreeTest < MiniTest::Unit::TestCase
     ds.insert(5)
     ds.insert(4)
 
-    draw(ds, 'tree.png')
-
     assert_correct_balance_factors ds
     assert_balanced ds
   end
 
   def assert_correct_balance_factors(ds)
     ds.each do |node|
-      assert_equal node.left.each.to_a.length - node.right.each.to_a.length,
+      assert_equal node.left.height - node.right.height,
         node.balance,
         "Node #{node.inspect} balance factor incorrect"
     end
@@ -71,7 +72,7 @@ class AvlTreeTest < MiniTest::Unit::TestCase
 
   def assert_balanced(ds)
     ds.each do |node|
-      balance = node.left.each.to_a.length - node.right.each.to_a.length
+      balance = node.left.height - node.right.height
       assert balance.abs <= 1, "Node #{node.inspect} is not balanced"
     end
   end
@@ -106,7 +107,7 @@ def draw(ds, filename)
 end
 
 class AvlTree
-  class Node < Struct.new(:value, :parent, :left, :right, :balance)
+  class Node < Struct.new(:value, :parent, :left, :right)
     EMPTY = Class.new
 
     def self.empty(parent)
@@ -120,28 +121,37 @@ class AvlTree
     def inspect
       return '-' if empty?
 
-      buffer = "<#{value} #{balance} #{left.inspect} #{right.inspect}>"
+      buffer = "<#{value} #{left.inspect} #{right.inspect}>"
     end
 
     def insert(x)
       return if x == value
 
       if empty?
-        self.value   = x
-        self.left    = Node.empty(self)
-        self.right   = Node.empty(self)
-        self.balance = 0
+        self.value = x
+        self.left  = Node.empty(self)
+        self.right = Node.empty(self)
+
+        rebalance(self.parent)
       else
         if x < value
-          if left.insert(x)
-            rebalance(left, 1)
-          end
+          left.insert(x)
         else
-          if right.insert(x)
-            rebalance(right, 1)
-          end
+          right.insert(x)
         end
       end
+    end
+
+    def height
+      if empty?
+        1
+      else
+        1 + [left.height, right.height].max
+      end
+    end
+
+    def balance
+      left.height - right.height
     end
 
     def rotate_right
@@ -155,10 +165,6 @@ class AvlTree
 
       new_head.right  = old_head
       old_head.parent = new_head
-
-      # This probably isn't right...
-      new_head.balance = 0
-      old_head.balance = 0
 
       parent.replace(old_head, new_head)
     end
@@ -175,10 +181,6 @@ class AvlTree
       new_head.left  = old_head
       old_head.parent = new_head
 
-      # This probably isn't right...
-      new_head.balance = 0
-      old_head.balance = 0
-
       parent.replace(old_head, new_head)
     end
 
@@ -191,14 +193,8 @@ class AvlTree
       new.parent = self
     end
 
-    def rebalance(child, d)
+    def rebalance(child)
       parent = self.parent
-
-      self.balance += if child == right
-        -d
-      else
-        d
-      end
 
       if balance == 2
         if left.balance == 1
@@ -218,7 +214,7 @@ class AvlTree
         end
       end
 
-      parent.rebalance(self, d)
+      parent.rebalance(self)
     end
 
     def include?(x)
@@ -237,21 +233,19 @@ class AvlTree
       left.empty? && right.empty?
     end
 
-    def each(&block)
-      if block
-        return if empty?
-
-        yield self
-        left.each(&block)
-        right.each(&block)
-      else
-        Enumerator.new do |yielder|
-          unless empty?
-            yielder.yield self
-            left.each  {|x| yielder.yield x }
-            right.each {|x| yielder.yield x }
-          end
+    def each(h = 0, &block)
+      enum = Enumerator.new do |yielder|
+        unless empty?
+          yielder.yield self, h
+          left.each(h+1)  {|x, h| yielder.yield x, h }
+          right.each(h+1) {|x, h| yielder.yield x, h }
         end
+      end
+
+      if block
+        enum.each(&block)
+      else
+        enum
       end
     end
   end
