@@ -17,7 +17,6 @@ class AvlTreeTest < MiniTest::Unit::TestCase
 
 #       draw(ds, 'tree.png')
 
-      assert_correct_balance_factors ds
       assert_balanced ds
     end
   end
@@ -28,7 +27,6 @@ class AvlTreeTest < MiniTest::Unit::TestCase
     ds.insert(4)
     ds.insert(5)
 
-    assert_correct_balance_factors ds
     assert_balanced ds
   end
 
@@ -38,7 +36,6 @@ class AvlTreeTest < MiniTest::Unit::TestCase
     ds.insert(4)
     ds.insert(3)
 
-    assert_correct_balance_factors ds
     assert_balanced ds
   end
 
@@ -48,7 +45,6 @@ class AvlTreeTest < MiniTest::Unit::TestCase
     ds.insert(3)
     ds.insert(4)
 
-    assert_correct_balance_factors ds
     assert_balanced ds
   end
 
@@ -58,16 +54,7 @@ class AvlTreeTest < MiniTest::Unit::TestCase
     ds.insert(5)
     ds.insert(4)
 
-    assert_correct_balance_factors ds
     assert_balanced ds
-  end
-
-  def assert_correct_balance_factors(ds)
-    ds.each do |node|
-      assert_equal node.left.height - node.right.height,
-        node.balance,
-        "Node #{node.inspect} balance factor incorrect"
-    end
   end
 
   def assert_balanced(ds)
