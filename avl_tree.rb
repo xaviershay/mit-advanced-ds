@@ -134,11 +134,7 @@ class AvlTree
 
         rebalance(self.parent)
       else
-        if x < value
-          left.insert(x)
-        else
-          right.insert(x)
-        end
+        compare(x).insert(x)
       end
     end
 
@@ -221,16 +217,19 @@ class AvlTree
       return false if empty?
       return true  if x == value
 
-      subtree = if x < value
-               left
-             else
-               right
-             end
-      subtree.include?(x)
+      compare(x).include?(x)
     end
 
     def leaf?
       left.empty? && right.empty?
+    end
+
+    def compare(x)
+      if x < value
+        left
+      else
+        right
+      end
     end
 
     def each(h = 0, &block)
