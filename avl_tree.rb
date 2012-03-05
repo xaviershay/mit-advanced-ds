@@ -139,10 +139,12 @@ class AvlTree
     end
 
     def height
-      if empty?
-        1
-      else
-        1 + [left.height, right.height].max
+      @height ||= begin
+        if empty?
+          1
+        else
+          1 + [left.height, right.height].max
+        end
       end
     end
 
@@ -172,6 +174,8 @@ class AvlTree
       new_head.set(direction,  old_head)
 
       old_parent.replace(old_head, new_head)
+
+      @height = nil
     end
 
     def replace(old, new)
