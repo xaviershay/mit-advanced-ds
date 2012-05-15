@@ -183,8 +183,7 @@ describe MaxHeap do
 
   it 'allows duplicate values' do
     heap = MaxHeap.new
-    heap << 1
-    heap << 1
+    heap << 1 << 1
     heap.pop.should == 1
     heap.pop.should == 1
   end
