@@ -120,7 +120,7 @@ class BinaryHeap
   # children, since integer division will floor both results.
   def bubble_up(i)
     while i != 0
-      parent = i/2
+      parent = (i-1)/2
 
       if compare(i, parent)
         swap!(i, parent)
@@ -162,17 +162,22 @@ class MinHeap < BinaryHeap
 end
 
 # Quick-check style specs that ensure the heap property invariant is
-# upheld regardless of the sequence of input.
+# upheld regardless of the sequence of input. Enough elements to fill at least
+# four levels of the tree are used to ensure that the `bubble_up` and
+# `bubble_down` methods are tested sufficiently.
 require 'rspec'
 
+elements = (1..2 ** 4).to_a
+
 describe MaxHeap do
-  15.times.map {(1..9).to_a.sort_by{rand}}.each do |example|
+  15.times.map {elements.sort_by{rand}}.each do |example|
     it "always pops maximum value for #{example}" do
       heap = MaxHeap.new
       example.each {|x| heap << x }
-      heap.top.should == 9
-      heap.pop.should == 9
-      heap.top.should == 8
+      elements.reverse.each do |x|
+        heap.top.should == x
+        heap.pop.should == x
+      end
     end
   end
 
@@ -186,13 +191,14 @@ describe MaxHeap do
 end
 
 describe MinHeap do
-  15.times.map {(1..9).to_a.sort_by{rand}}.each do |example|
+  15.times.map {elements.sort_by{rand}}.each do |example|
     it "always pops minimum value for #{example}" do
       heap = MinHeap.new
       example.each {|x| heap << x }
-      heap.top.should == 1
-      heap.pop.should == 1
-      heap.top.should == 2
+      elements.each do |x|
+        heap.top.should == x
+        heap.pop.should == x
+      end
     end
   end
 
