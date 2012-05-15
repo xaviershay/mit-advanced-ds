@@ -167,32 +167,13 @@ end
 # `bubble_down` methods are tested sufficiently.
 require 'rspec'
 
-elements = (1..2 ** 4).to_a
+test_elements = (1..2 ** 4).to_a
 
-describe MaxHeap do
-  15.times.map {elements.sort_by{rand}}.each do |example|
+shared_examples_for 'a heap' do
+  let(:heap) { subject }
+
+  15.times.map {test_elements.sort_by{rand}}.each do |example|
     it "always pops maximum value for #{example}" do
-      heap = MaxHeap.new
-      example.each {|x| heap << x }
-      elements.reverse.each do |x|
-        heap.top.should == x
-        heap.pop.should == x
-      end
-    end
-  end
-
-  it 'allows duplicate values' do
-    heap = MaxHeap.new
-    heap << 1 << 1
-    heap.pop.should == 1
-    heap.pop.should == 1
-  end
-end
-
-describe MinHeap do
-  15.times.map {elements.sort_by{rand}}.each do |example|
-    it "always pops minimum value for #{example}" do
-      heap = MinHeap.new
       example.each {|x| heap << x }
       elements.each do |x|
         heap.top.should == x
@@ -202,9 +183,20 @@ describe MinHeap do
   end
 
   it 'allows duplicate values' do
-    heap = MinHeap.new
     heap << 1 << 1
     heap.pop.should == 1
     heap.pop.should == 1
   end
+end
+
+describe MaxHeap do
+  let(:elements) { test_elements.reverse }
+
+  it_should_behave_like 'a heap'
+end
+
+describe MinHeap do
+  let(:elements) { test_elements }
+
+  it_should_behave_like 'a heap'
 end
